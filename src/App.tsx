@@ -94,7 +94,7 @@ const API_ENDPOINTS = [
 
 // --- Helper Date ---
 const getNextDates = (daysToCheck: number) => {
-    const dates: string[] = []; // Thêm kiểu string[]
+    const dates: string[] = []; 
     const today = new Date();
     for (let i = 0; i < daysToCheck; i++) {
         const nextDate = new Date(today);
@@ -113,7 +113,7 @@ const fetchRealMatchesFromESPN = async (): Promise<Match[]> => {
   const datesToCheck = getNextDates(3); 
 
   try {
-    const fetchPromises: Promise<any>[] = []; // Thêm kiểu Promise<any>[]
+    const fetchPromises: Promise<any>[] = []; 
     
     for (const league of API_ENDPOINTS) {
         for (const dateStr of datesToCheck) {
@@ -206,14 +206,40 @@ export default function FootballPredictionApp() {
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [selectedLeague, setSelectedLeague] = useState<string>('all'); 
 
+  // --- INJECT STYLES & SCRIPTS (Fix CSS) ---
   useEffect(() => {
+    // 1. Inject Font
     const link = document.createElement('link');
     link.href = 'https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&display=swap';
     link.rel = 'stylesheet';
     document.head.appendChild(link);
-    return () => { document.head.removeChild(link); };
+
+    // 2. Inject Tailwind CSS (CDN) - Giúp web nhận CSS ngay lập tức mà không cần cài đặt
+    const script = document.createElement('script');
+    script.src = "https://cdn.tailwindcss.com";
+    document.head.appendChild(script);
+
+    // 3. Inject Custom CSS (Scrollbar hide)
+    const style = document.createElement('style');
+    style.innerHTML = `
+      .scrollbar-hide::-webkit-scrollbar {
+          display: none;
+      }
+      .scrollbar-hide {
+          -ms-overflow-style: none;  /* IE and Edge */
+          scrollbar-width: none;  /* Firefox */
+      }
+    `;
+    document.head.appendChild(style);
+
+    // Cleanup
+    return () => { 
+        document.head.removeChild(link);
+        // Không remove script Tailwind để tránh lỗi style khi re-render
+    };
   }, []);
 
+  // --- Auth ---
   useEffect(() => {
     const initAuth = async () => {
         await signInAnonymously(auth);

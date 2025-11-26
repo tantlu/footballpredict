@@ -31,7 +31,6 @@ import {
 } from 'lucide-react';
 
 // --- Cấu hình Firebase & Khởi tạo ---
-// Đã cập nhật với thông tin dự án của bạn
 const firebaseConfig = {
   apiKey: "AIzaSyBbl9HqfKTW80w3LqIwmJ_X1MZ4778F8CQ",
   authDomain: "football-du-doan.firebaseapp.com",
@@ -45,7 +44,6 @@ const firebaseConfig = {
 const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
 const db = getFirestore(app);
-// ID định danh cho ứng dụng (dùng để tạo folder trong database)
 const appId = 'football-du-doan';
 
 // --- Types ---
@@ -77,7 +75,7 @@ interface UserProfile {
   totalPoints: number;
 }
 
-// --- API CONFIG (Cập nhật thêm giải Châu Á) ---
+// --- API CONFIG ---
 const API_ENDPOINTS = [
   // Châu Âu
   { name: 'Premier League', url: 'https://site.api.espn.com/apis/site/v2/sports/soccer/eng.1/scoreboard' },
@@ -95,9 +93,8 @@ const API_ENDPOINTS = [
 ];
 
 // --- Helper Date ---
-// Hàm lấy chuỗi YYYYMMDD cho n ngày tới
 const getNextDates = (daysToCheck: number) => {
-    const dates = [];
+    const dates: string[] = []; // Thêm kiểu string[]
     const today = new Date();
     for (let i = 0; i < daysToCheck; i++) {
         const nextDate = new Date(today);
@@ -110,14 +107,13 @@ const getNextDates = (daysToCheck: number) => {
     return dates;
 };
 
-// --- REAL DATA FETCHER (ESPN - Multi-day) ---
+// --- REAL DATA FETCHER (ESPN) ---
 const fetchRealMatchesFromESPN = async (): Promise<Match[]> => {
   const allMatches: Match[] = [];
-  const datesToCheck = getNextDates(3); // Lấy dữ liệu 3 ngày: Hôm nay, Mai, Kia
+  const datesToCheck = getNextDates(3); 
 
   try {
-    // Tạo danh sách tất cả các request cần gọi (Số giải x Số ngày)
-    const fetchPromises = [];
+    const fetchPromises: Promise<any>[] = []; // Thêm kiểu Promise<any>[]
     
     for (const league of API_ENDPOINTS) {
         for (const dateStr of datesToCheck) {
@@ -142,12 +138,10 @@ const fetchRealMatchesFromESPN = async (): Promise<Match[]> => {
           const awayComp = competitors.find((c: any) => c.homeAway === 'away');
           const statusState = event.status.type.state;
 
-          // Map status
           let status: MatchStatus = 'scheduled';
           if (statusState === 'in') status = 'live';
           else if (statusState === 'post') status = 'finished';
 
-          // Chỉ lấy nếu có đủ thông tin
           if (homeComp && awayComp) {
               allMatches.push({
                 id: event.id,
@@ -165,7 +159,6 @@ const fetchRealMatchesFromESPN = async (): Promise<Match[]> => {
         });
     });
 
-    // Khử trùng lặp (Deduplicate) dựa trên ID trận đấu
     const uniqueMatches = Array.from(new Map(allMatches.map(item => [item.id, item])).values());
     return uniqueMatches;
 
@@ -175,7 +168,7 @@ const fetchRealMatchesFromESPN = async (): Promise<Match[]> => {
   }
 };
 
-// --- LOGO HELPER (Fallback) ---
+// --- LOGO HELPER ---
 const getTeamLogo = (teamName: string, apiLogo?: string) => {
   if (apiLogo) return apiLogo;
   return `https://ui-avatars.com/api/?name=${encodeURIComponent(teamName)}&background=random&color=10b981&size=64&font-size=0.4`;
@@ -213,7 +206,6 @@ export default function FootballPredictionApp() {
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [selectedLeague, setSelectedLeague] = useState<string>('all'); 
 
-  // Inject Font
   useEffect(() => {
     const link = document.createElement('link');
     link.href = 'https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&display=swap';
@@ -222,10 +214,8 @@ export default function FootballPredictionApp() {
     return () => { document.head.removeChild(link); };
   }, []);
 
-  // 1. Khởi tạo Auth
   useEffect(() => {
     const initAuth = async () => {
-        // Với Firebase thật, chỉ cần signInAnonymously là đủ, không cần token custom
         await signInAnonymously(auth);
     };
     initAuth();
@@ -236,13 +226,11 @@ export default function FootballPredictionApp() {
     return () => unsubscribe();
   }, []);
 
-  // 2. Refresh Data
   const refreshMatches = async () => {
     if (!user) return;
     setIsRefreshing(true);
     const matchesRef = collection(db, 'artifacts', appId, 'public', 'data', 'matches');
     
-    // Fetch dữ liệu mới nhất (3 ngày)
     const realMatches = await fetchRealMatchesFromESPN();
     
     if (realMatches.length > 0) {
@@ -255,13 +243,11 @@ export default function FootballPredictionApp() {
     setIsRefreshing(false);
   };
 
-  // 3. Listen Matches
   useEffect(() => {
     if (!user) return;
 
     const matchesRef = collection(db, 'artifacts', appId, 'public', 'data', 'matches');
     
-    // Load lần đầu nếu chưa có data
     const seedDataIfNeeded = async () => {
       const snap = await getDocs(matchesRef);
       if (snap.empty) {
@@ -272,7 +258,6 @@ export default function FootballPredictionApp() {
 
     const unsubscribe = onSnapshot(matchesRef, (snapshot) => {
       const matchesList = snapshot.docs.map(d => d.data() as Match);
-      // Sort: Live -> Time
       matchesList.sort((a, b) => {
         if (a.status === 'live' && b.status !== 'live') return -1;
         if (b.status === 'live' && a.status !== 'live') return 1;
@@ -284,7 +269,6 @@ export default function FootballPredictionApp() {
     return () => unsubscribe();
   }, [user]);
 
-  // 4. Listen Predictions
   useEffect(() => {
     if (!user) return;
     const predictionsRef = collection(db, 'artifacts', appId, 'users', user.uid, 'predictions');
@@ -298,7 +282,6 @@ export default function FootballPredictionApp() {
     return () => unsubscribe();
   }, [user]);
 
-  // 5. Update Points
   useEffect(() => {
     if (!user || matches.length === 0) return;
     let total = 0;
@@ -317,7 +300,6 @@ export default function FootballPredictionApp() {
 
   }, [user, predictions, matches]);
 
-  // 6. Listen Leaderboard
   useEffect(() => {
     if (!user) return;
     const usersRef = collection(db, 'artifacts', appId, 'public', 'data', 'users');
@@ -329,7 +311,6 @@ export default function FootballPredictionApp() {
     return () => unsubscribe();
   }, [user]);
 
-  // --- Logic Nhóm & Lọc ---
   const uniqueLeagues = useMemo(() => {
     const leagues = new Set(matches.map(m => m.league));
     return Array.from(leagues).sort();
@@ -337,13 +318,10 @@ export default function FootballPredictionApp() {
 
   const groupedMatches = useMemo(() => {
     let filtered = matches;
-    
-    // Filter
     if (selectedLeague !== 'all') {
       filtered = matches.filter(m => m.league === selectedLeague);
     }
 
-    // Group by League
     const groups: Record<string, Match[]> = {};
     filtered.forEach(match => {
       if (!groups[match.league]) {
@@ -355,7 +333,6 @@ export default function FootballPredictionApp() {
     return groups;
   }, [matches, selectedLeague]);
 
-  // --- Handlers ---
   const handleUpdateProfile = async () => {
     if (!loginName.trim() || !user) return;
     setIsAuthLoading(true);
@@ -387,8 +364,6 @@ export default function FootballPredictionApp() {
       timestamp: new Date().toISOString()
     });
   };
-
-  // --- Render ---
 
   const renderLogin = () => (
     <div className="flex flex-col items-center justify-center min-h-screen bg-slate-50 p-6 relative overflow-hidden font-['Outfit']">
@@ -439,13 +414,11 @@ export default function FootballPredictionApp() {
     const matchTime = new Date(match.startTime);
     const isToday = new Date().toDateString() === matchTime.toDateString();
     
-    // Format ngày ngắn gọn
     const dateDisplay = matchTime.toLocaleDateString('vi-VN', { day: 'numeric', month: 'numeric'});
     const timeDisplay = matchTime.toLocaleTimeString('vi-VN', { hour: '2-digit', minute:'2-digit'});
 
     return (
       <div key={match.id} className="bg-white rounded-2xl overflow-hidden mb-3 shadow-[0_4px_20px_rgb(0,0,0,0.03)] border border-slate-100 hover:shadow-[0_8px_30px_rgb(0,0,0,0.06)] transition-all duration-300 group">
-        {/* Match Header Info */}
         <div className="bg-slate-50/50 px-4 py-2 flex justify-between items-center text-[10px] font-bold border-b border-slate-100/50">
           <div className="flex items-center gap-2">
              {match.status === 'live' ? (
@@ -461,10 +434,8 @@ export default function FootballPredictionApp() {
           {match.status === 'finished' && <span className="text-slate-400">FT</span>}
         </div>
 
-        {/* Teams & Scores */}
         <div className="p-4">
           <div className="flex items-center justify-between gap-4">
-             {/* Home */}
              <div className="flex-1 flex flex-col items-center gap-2">
                  <div className="w-12 h-12 relative">
                     <img src={getTeamLogo(match.homeTeam, match.homeLogo)} alt={match.homeTeam} className="w-full h-full object-contain drop-shadow-sm" />
@@ -474,7 +445,6 @@ export default function FootballPredictionApp() {
                  </div>
              </div>
              
-             {/* Score Area */}
              <div className="flex flex-col items-center justify-center min-w-[80px]">
                 {isFinished || match.status === 'live' ? (
                    <div className={`text-2xl font-black tracking-tight px-3 py-1 rounded-xl ${match.status === 'live' ? 'text-rose-500' : 'text-slate-800'}`}>
@@ -485,7 +455,6 @@ export default function FootballPredictionApp() {
                 )}
              </div>
 
-             {/* Away */}
              <div className="flex-1 flex flex-col items-center gap-2">
                  <div className="w-12 h-12 relative">
                     <img src={getTeamLogo(match.awayTeam, match.awayLogo)} alt={match.awayTeam} className="w-full h-full object-contain drop-shadow-sm" />
@@ -496,7 +465,6 @@ export default function FootballPredictionApp() {
              </div>
           </div>
 
-          {/* Prediction Input */}
           <div className={`mt-4 rounded-xl p-1 transition-all duration-300 ${pointsEarned === 2 ? 'bg-gradient-to-r from-emerald-400 to-teal-400 shadow-md shadow-emerald-200' : 'bg-slate-50'}`}>
              <div className="bg-white rounded-lg p-2 shadow-sm flex items-center justify-between">
                 <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider pl-1">

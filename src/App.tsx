@@ -1,11 +1,10 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { initializeApp } from 'firebase/app';
 import { 
   getAuth, 
   signInAnonymously, 
   onAuthStateChanged, 
-  updateProfile,
-  signInWithCustomToken
+  updateProfile
 } from 'firebase/auth';
 import { 
   getFirestore, 
@@ -21,7 +20,6 @@ import {
   User, 
   LogOut, 
   Activity, 
-  AlertCircle,
   TrendingUp,
   RefreshCw,
   Globe2,
@@ -127,7 +125,7 @@ const fetchRealMatchesFromESPN = async (): Promise<Match[]> => {
                 fetch(`${league.url}?dates=${dateStr}`)
                     .then(res => res.json())
                     .then(data => ({ leagueName: league.name, data }))
-                    .catch(err => null)
+                    .catch(() => null)
             );
         }
     }
